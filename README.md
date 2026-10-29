@@ -10,6 +10,9 @@ Start your local proxy client, open PowerShell, and paste:
 irm https://github.com/kemarachanger/hianti-downloads/releases/latest/download/install.ps1 | iex
 ```
 
+You can use Windows PowerShell 5.1 or PowerShell 7. If an older installation reports
+`Get-FileHash` is missing, run the same installer again to apply the launcher fix.
+
 No GitHub account, token, Git, or GitHub CLI is required. The installer verifies the
 signed package, installs `hianti` for your Windows user, detects Antigravity and a
 local SOCKS5 proxy, and enables background repair at Windows sign-in. If Antigravity
