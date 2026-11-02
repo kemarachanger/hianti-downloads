@@ -26,6 +26,10 @@ port. No TUN mode or Windows system-proxy change is needed.
 
 ```text
 hianti status           Check the app, proxy and background worker
+hianti ipv6 block       Block native IPv6 in injected processes
+hianti ipv6 proxy       Restore IPv6 routing through the proxy
+hianti doctor           Diagnose the proxy route and recent errors
+hianti doctor --offline Check local setup without external probes
 hianti fix              Repair once
 hianti update           Install the latest signed Hianti release
 hianti watch off        Stop background maintenance and login startup
@@ -36,6 +40,16 @@ If several proxy ports are found, choose one with `hianti --port 3067` (use your
 client's actual port). After an Antigravity update, background maintenance waits for
 the app to exit before repairing files. `hianti fix` is available for manual repair.
 Account identity is currently reported as **Unknown**.
+
+IPv6 policy is saved for future repairs. Close Antigravity to apply a pending
+change. Loopback and IPv4-mapped connections remain available. This controls
+intercepted Windows processes, not system IPv6 or the remote proxy's exit family.
+The default remains `proxy`.
+
+Doctor checks exit IP metadata and Google HTTPS connectivity without credentials;
+it summarizes recent log error categories without printing raw messages. IP lookup
+routes may differ from Google routes. It does not claim that an IP is trusted by
+Google or that Gemini model access works; verify with a request in Antigravity.
 
 Existing Hianti users can run the same installation command again. It keeps the
 app/proxy binding and migrates the old private publisher feed to public downloads.
@@ -49,7 +63,8 @@ is also available: extract the ZIP and run
 `powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-Local.ps1 -Start`.
 
 This repository hosts distribution files. The package includes Hianti's runtime
-PowerShell scripts and Antigravity-Proxy v2.4 with its license notices. Development
+PowerShell scripts and Antigravity-Proxy 2.4-hianti.1 (with an IPv6 blocking fix)
+with its license notices. Development
 history and publisher credentials are kept separately. Package signatures use a
 pinned publisher key; the private signing key is not distributed.
 
