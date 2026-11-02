@@ -60,7 +60,7 @@ function Download([string]$Url,[string]$Path,[int]$Limit,[switch]$Json) {
     throw 'Too many download redirects.'
 }
 try {
-    Write-Output 'Hianti | Downloading the latest signed release'
+    Write-Output 'Antigo | Downloading the latest signed release'
     $release=$null
     if ($publicDistribution) {
         foreach ($name in @('feed.json','feed.json.sig')) {
@@ -116,7 +116,7 @@ try {
         if ($seen.Count -ne $allowed.Count) { throw 'Incomplete package.' }
     } finally { $zip.Dispose() }
     if ([IO.File]::ReadAllText((Join-Path $package 'trust-public.xml')).Trim() -ne $publicKey) { throw 'The package changes the trusted key.' }
-    Write-Output 'Hianti | Signature and package verified'
+    Write-Output 'Antigo | Signature and package verified'
     $oldProcessPolicy=Get-ExecutionPolicy -Scope Process
     if ($oldProcessPolicy -ne 'Bypass') {
         Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force

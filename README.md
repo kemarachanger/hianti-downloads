@@ -1,6 +1,7 @@
-# Hianti
+# Antigo
 
 One-command proxy setup and background repair for **Antigravity on Windows x64**.
+Formerly Hianti. The `hianti` command remains a compatibility alias for `antigo`.
 
 ## Install
 
@@ -14,9 +15,10 @@ You can use Windows PowerShell 5.1 or PowerShell 7. If an older installation rep
 `Get-FileHash` is missing, run the same installer again to apply the launcher fix.
 
 No GitHub account, token, Git, or GitHub CLI is required. The installer verifies the
-signed package, installs `hianti` for your Windows user, detects Antigravity and a
-local SOCKS5 proxy, and enables background repair at Windows sign-in. If Antigravity
-is open and needs a repair, save your work and close it once to let setup finish.
+signed package, installs both `antigo` and `hianti` for your Windows user, detects
+Antigravity and a local SOCKS5 proxy, and enables background repair at Windows
+sign-in. If Antigravity is open and needs a repair, save your work and close it once
+to let setup finish.
 
 Requirements: Windows 10/11 x64, Windows PowerShell 5.1, x64 Antigravity, and a
 running local proxy with an unauthenticated SOCKS5 listener, such as Karing's mixed
@@ -25,20 +27,20 @@ port. No TUN mode or Windows system-proxy change is needed.
 ## Daily use
 
 ```text
-hianti status           Check the app, proxy and background worker
-hianti ipv6 block       Block native IPv6 in injected processes
-hianti ipv6 proxy       Restore IPv6 routing through the proxy
-hianti doctor           Diagnose the proxy route and recent errors
-hianti doctor --offline Check local setup without external probes
-hianti fix              Repair once
-hianti update           Install the latest signed Hianti release
-hianti watch off        Stop background maintenance and login startup
-hianti restore          Restore the original application files
+antigo status           Check the app, proxy and background worker
+antigo ipv6 block       Block native IPv6 in injected processes
+antigo ipv6 proxy       Restore IPv6 routing through the proxy
+antigo doctor           Diagnose the proxy route and recent errors
+antigo doctor --offline Check local setup without external probes
+antigo fix              Repair once
+antigo update           Install the latest signed Antigo release
+antigo watch off        Stop background maintenance and login startup
+antigo restore          Restore the original application files
 ```
 
-If several proxy ports are found, choose one with `hianti --port 3067` (use your
+If several proxy ports are found, choose one with `antigo --port 3067` (use your
 client's actual port). After an Antigravity update, background maintenance waits for
-the app to exit before repairing files. `hianti fix` is available for manual repair.
+the app to exit before repairing files. `antigo fix` is available for manual repair.
 Account identity is currently reported as **Unknown**.
 
 IPv6 policy is saved for future repairs. Close Antigravity to apply a pending
@@ -55,6 +57,18 @@ Existing Hianti users can run the same installation command again. It keeps the
 app/proxy binding and migrates the old private publisher feed to public downloads.
 Updates then work without GitHub authorization. Custom update feeds are preserved.
 
+Alternatively, update an existing installation with:
+
+```powershell
+hianti update
+hianti --help
+antigo status
+```
+
+The second command creates the new alias after an older updater activates the
+release. Both names use the same settings and background worker. Existing download
+links and the `%LOCALAPPDATA%\Hianti` installation directory remain valid.
+
 ## Downloads
 
 [Latest release](https://github.com/kemarachanger/hianti-downloads/releases/latest)
@@ -62,7 +76,7 @@ contains the ZIP, `install.ps1`, signed update feed, and checksums. A manual ins
 is also available: extract the ZIP and run
 `powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-Local.ps1 -Start`.
 
-This repository hosts distribution files. The package includes Hianti's runtime
+This repository hosts distribution files. The package includes Antigo's runtime
 PowerShell scripts and Antigravity-Proxy 2.4-hianti.1 (with an IPv6 blocking fix)
 with its license notices. Development
 history and publisher credentials are kept separately. Package signatures use a
