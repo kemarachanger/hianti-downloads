@@ -1,9 +1,10 @@
 # Antigo
 
-One-command proxy setup and background repair for **Antigravity on Windows x64**.
+One-command proxy setup and background repair for **Antigravity on Windows x64**,
+plus a separate **macOS preview** for Apple Silicon and Intel.
 Formerly Hianti. The `hianti` command remains a compatibility alias for `antigo`.
 
-## Install
+## Windows install
 
 Start your local proxy client, open PowerShell, and paste:
 
@@ -24,7 +25,7 @@ Requirements: Windows 10/11 x64, Windows PowerShell 5.1, x64 Antigravity, and a
 running local proxy with an unauthenticated SOCKS5 listener, such as Karing's mixed
 port. No TUN mode or Windows system-proxy change is needed.
 
-## Daily use
+## Windows daily use
 
 ```text
 antigo status           Check the app, proxy and background worker
@@ -69,7 +70,38 @@ The second command creates the new alias after an older updater activates the
 release. Both names use the same settings and background worker. Existing download
 links and the `%LOCALAPPDATA%\Hianti` installation directory remain valid.
 
-## Downloads
+## macOS preview
+
+Quit Antigravity and start your local proxy client. In Terminal:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/kemarachanger/hianti-downloads/main/macos/install.sh | bash && export PATH="$HOME/.local/bin:$PATH"
+```
+
+The signed installer detects Apple Silicon/Intel and installs without sudo,
+Homebrew or a GitHub account. Launch Antigravity through `antigo` on each use.
+Both `antigo` and `hianti` work. With multiple SOCKS5 listeners, choose one using
+`antigo --port 7890` with your actual port.
+
+```sh
+antigo status
+antigo doctor --json
+antigo update
+antigo watch off
+```
+
+This preview uses Electron launch settings and proxy environment variables with
+a local SOCKS5 bridge. It does not modify the app or change the system proxy.
+It cannot yet block direct IPv6 or capture helpers that ignore proxy settings.
+The public release signature verifies the publisher; the binary is not Apple
+Developer ID notarized. macOS 15 runner tests cover both architectures;
+real Antigravity/Gemini requests still need testing on your Mac.
+
+`antigo watch off` stops the bridge; quit and reopen the original app normally to
+remove its scoped launch settings. macOS updates use their own signed preview
+feed. [macOS preview details](macos/README.md) describe coverage and recovery.
+
+## Windows downloads
 
 [Latest release](https://github.com/kemarachanger/hianti-downloads/releases/latest)
 contains the ZIP, `install.ps1`, signed update feed, and checksums. A manual install
