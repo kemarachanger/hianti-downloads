@@ -26,7 +26,8 @@ Do not disable Gatekeeper or SIP to use this preview.
 ```sh
 antigo                     # Detect, enable maintenance, launch Antigravity
 antigo --port 7890          # Choose a local SOCKS5/mixed port
-antigo status              # Inspect app path/version, port and worker
+antigo status              # Inspect essential app, proxy and bridge status
+antigo status --verbose    # Include paths, settings, processes and coverage
 antigo doctor              # Inspect proxy exits and HTTPS connectivity
 antigo doctor --offline    # Local checks only
 antigo doctor --guided     # Ask about the Google Terms account country
@@ -117,6 +118,13 @@ or bypassed a separately installed network extension. Inspection failures are
 reported explicitly. Short-lived traffic, reparented helpers outside the bundle,
 system-mediated traffic and unconnected UDP destinations can remain invisible.
 Observing no external sockets never proves full coverage or IPv6 blocking.
+
+Default `status` keeps the app/version, proxy reachability, bridge state, IPv6
+support, maintenance and login startup. Errors and inactive bridges remain
+visible. Use `status --verbose` for full paths, network settings, inspected
+processes, bridge details and coverage. `doctor` includes this complete local
+view alongside its diagnostic results. Both aliases accept the option, and
+`--json` preserves the full existing fields regardless of verbosity.
 
 For the first real-app test, launch with `antigo`, send a small Gemini request,
 then run `antigo doctor --json`. The output includes paths and exit IPs; redact
