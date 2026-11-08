@@ -120,7 +120,7 @@ ANTIGO_PUBLIC_KEY
     [ "$no_watch" = 0 ] || start_args+=(--no-watch)
     [ -z "$app_path" ] || start_args+=(--app "$app_path")
     [ -z "$port" ] || start_args+=(--port "$port")
-    say 'Detecting your local SOCKS5 proxy, enabling maintenance and launching Antigravity'
+    say 'Detecting your local SOCKS5 proxy, enabling auto repair and launching Antigravity'
     if ! "$home_path/bin/antigo" "${start_args[@]}"; then
       say 'Installation is complete; setup needs attention. Resolve the message above, then run antigo.'
     fi
