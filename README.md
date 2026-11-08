@@ -110,6 +110,10 @@ explicitly scopes gRPC Core proxy variables, and observes app-descendant TCP/UDP
 sockets. Quit the app and launch with `antigo` after updating. Socket observations
 are diagnostic evidence; the preview still cannot enforce a native IPv6 block.
 
+macOS 0.1.3 also adds an official GitHub asset API fallback for release download
+outages, with the same signature and checksum verification. If an older updater
+returns HTTP 504, rerun the installation command above to obtain this fix.
+
 This preview uses Electron launch settings and proxy environment variables with
 a local SOCKS5 bridge. It does not modify the app or change the system proxy.
 It cannot yet block direct IPv6 or capture helpers that ignore proxy settings.

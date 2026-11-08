@@ -4,6 +4,34 @@ set -euo pipefail
 fail() { printf 'Antigo: %s\n' "$*" >&2; exit 1; }
 say() { printf 'Antigo | %s\n' "$*"; }
 
+asset_api_url() {
+  local metadata version platform expected tag draft index name selected asset_id asset_size asset_state
+  metadata=$1; version=$2; platform=$3
+  [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail 'Invalid release version.'
+  case "$platform" in macos-arm64|macos-amd64) ;; *) fail 'Invalid asset platform.' ;; esac
+  expected="antigo-$version-$platform"
+  tag=$(/usr/bin/plutil -extract tag_name raw -o - "$metadata") || fail 'Invalid release metadata.'
+  draft=$(/usr/bin/plutil -extract draft raw -o - "$metadata") || fail 'Invalid release metadata.'
+  [ "$tag" = "macos-v$version" ] && [ "$draft" = false ] || fail 'Unexpected GitHub release metadata.'
+  index=0; selected=''
+  while name=$(/usr/bin/plutil -extract "assets.$index.name" raw -o - "$metadata" 2>/dev/null); do
+    [ "$index" -lt 128 ] || fail 'Too many release assets.'
+    if [ "$name" = "$expected" ]; then
+      [ -z "$selected" ] || fail 'Duplicate release asset.'
+      asset_id=$(/usr/bin/plutil -extract "assets.$index.id" raw -o - "$metadata")
+      asset_size=$(/usr/bin/plutil -extract "assets.$index.size" raw -o - "$metadata")
+      asset_state=$(/usr/bin/plutil -extract "assets.$index.state" raw -o - "$metadata")
+      [[ "$asset_id" =~ ^[1-9][0-9]{0,17}$ ]] || fail 'Invalid asset ID.'
+      [[ "$asset_size" =~ ^[1-9][0-9]{0,8}$ ]] || fail 'Invalid asset size.'
+      [ "$asset_size" -le 33554432 ] && [ "$asset_state" = uploaded ] || fail 'Invalid release asset.'
+      selected="https://api.github.com/repos/kemarachanger/hianti-downloads/releases/assets/$asset_id"
+    fi
+    index=$((index+1))
+  done
+  [ -n "$selected" ] || fail 'Signed package not found in the GitHub release.'
+  printf '%s\n' "$selected"
+}
+
 main() {
   [ "$(uname -s)" = Darwin ] || fail 'This installer requires macOS.'
   [ "$(id -u)" != 0 ] || fail 'Run as your normal Mac user, without sudo.'
@@ -43,7 +71,7 @@ main() {
   /bin/chmod 700 "$work"
   local feed release_version release_platform checksum package_url actual_hash
   feed="https://raw.githubusercontent.com/kemarachanger/hianti-downloads/main/macos/preview/feed-$architecture.json"
-  fetch() { /usr/bin/curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL --retry 2 --connect-timeout 15 --max-time 120 --max-filesize "$3" "$1" -o "$2"; }
+  fetch() { /usr/bin/curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL --retry 2 --connect-timeout 15 --max-time 120 --max-filesize "$3" -H "Accept: ${4:-application/octet-stream}" "$1" -o "$2"; }
   say 'Downloading the latest signed macOS preview'
   fetch "$feed" "$work/feed.json" 131072
   fetch "$feed.sig" "$work/feed.json.sig" 8192
@@ -71,7 +99,13 @@ ANTIGO_PUBLIC_KEY
   [[ "$checksum" =~ ^[0-9a-f]{64}$ ]] || fail 'Invalid package checksum.'
   [ "$release_platform" = "macos-$architecture" ] || fail 'Release architecture mismatch.'
   [ "$package_url" = "https://github.com/kemarachanger/hianti-downloads/releases/download/macos-v$release_version/antigo-$release_version-macos-$architecture" ] || fail 'Unexpected package location.'
-  fetch "$package_url" "$work/antigo" 33554432
+  if ! fetch "$package_url" "$work/antigo" 33554432; then
+    say 'Release download unavailable; trying the official GitHub asset API'
+    fetch "https://api.github.com/repos/kemarachanger/hianti-downloads/releases/tags/macos-v$release_version" "$work/release.json" 2097152 application/vnd.github+json
+    local api_url
+    api_url=$(asset_api_url "$work/release.json" "$release_version" "macos-$architecture")
+    fetch "$api_url" "$work/antigo" 33554432 application/octet-stream
+  fi
   actual_hash=$(/usr/bin/shasum -a 256 "$work/antigo")
   actual_hash=${actual_hash%% *}
   [ "$actual_hash" = "$checksum" ] || fail 'Package checksum verification failed.'
@@ -102,4 +136,4 @@ ANTIGO_PUBLIC_KEY
   trap - EXIT
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]:-$0}" = "$0" ]]; then main "$@"; fi

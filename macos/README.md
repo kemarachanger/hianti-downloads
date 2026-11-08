@@ -188,6 +188,13 @@ the proxy binding and switch between immutable per-version directories; rollback
 re-verifies the saved package before activation. Update operations can briefly
 interrupt the local bridge. Antigo updates are manual in this preview.
 
+Version 0.1.3 adds a public GitHub asset API fallback for release-download outages.
+The installer retries a failed binary download through that API; the updater uses
+it for temporary HTTP errors or timeouts. Both keep the same signed version,
+architecture and SHA-256 checks. No GitHub token is required; public API rate
+limits still apply. If an older `antigo update` fails with HTTP 504, rerun the
+one-line installer above to obtain the download fix and preserve your binding.
+
 To install without starting the app or editing shell startup files:
 
 ```sh
