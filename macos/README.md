@@ -29,6 +29,8 @@ antigo --port 7890          # Choose a local SOCKS5/mixed port
 antigo status              # Inspect app path/version, port and worker
 antigo doctor              # Inspect proxy exits and HTTPS connectivity
 antigo doctor --offline    # Local checks only
+antigo doctor --guided     # Ask about the Google Terms account country
+antigo doctor --compare-curl  # Compare native probes with macOS curl
 antigo fix                 # Save binding without launching
 antigo update              # Install the latest signed macOS preview
 antigo update --check      # Check for an update
@@ -50,6 +52,18 @@ LaunchAgent keeps the bridge available and observes app versions; if the GUI
 launchd domain is unavailable, Antigo reports a session-worker fallback.
 An app update does not require reinjecting files: quit the app and run `antigo`
 again. The worker does not force an updated app to restart.
+
+The installer invokes `antigo start` once, so opening Antigravity during install
+or when running bare `antigo` is expected. `status`, `doctor`, `fix` and the
+background worker do not launch it. To install without that first app launch:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/kemarachanger/hianti-downloads/main/macos/install.sh | bash -s -- --no-start
+```
+
+Open a new terminal afterward, or export the command path as in the main install
+command. `--no-start` skips initial setup too; run `antigo fix` to save a binding
+without launching, then `antigo` when ready to start the app.
 
 ## What the preview covers
 
@@ -79,6 +93,63 @@ tokens, judge Google's trust in an IP, or claim that Gemini access works.
 For the first real-app test, launch with `antigo`, send a small Gemini request,
 then run `antigo doctor --json`. The output includes paths and exit IPs; redact
 those if sharing publicly. Account identity is reported as Unknown.
+
+### Troubleshooting HTTPS failures and account country
+
+The local SOCKS5 greeting only proves that a compatible listener exists. It does
+not prove the proxy can connect to a destination. Version 0.1.1 reports failures
+as `local_connect`, `socks_handshake`, `socks_connect`, `tls_handshake` or
+`http_response`, with bounded error details and SOCKS5 reply codes when supplied.
+All native HTTPS probes failing now produces `FAIL`, even if the bridge and
+SOCKS5 greeting are healthy. `ATTENTION` still reflects the preview's coverage
+limits; HTTP 401/403/404 are HTTP responses, not evidence of authenticated model
+access. Zero observed external sockets is not proof that no traffic bypassed the
+proxy, especially when no app process was found.
+
+For a mixed listener such as a FlClash configuration, compare the same Google
+OAuth endpoint and port:
+
+```sh
+antigo doctor --compare-curl --json
+```
+
+This adds two bounded requests using macOS curl: explicit SOCKS5 with remote DNS
+and HTTP CONNECT. HTTP CONNECT requires a mixed or HTTP listener. `.curlrc` and
+inherited no-proxy bypasses are ignored. There is no direct retry, certificate
+bypass or proxy reconfiguration. Differing results help narrow down TLS client,
+inbound protocol, process-rule or network differences; they do not identify a
+single cause by themselves. Maximum probe time is about 60 seconds plus local
+inspection. The original four native probes remain the basis of the connectivity
+summary; successful curl comparisons are reported separately.
+
+Google's [Antigravity FAQ](https://antigravity.google/docs/faq#what-is-google-antigravitys-geographical-availability)
+directs users to check the account-associated country on the
+[Terms of Service page](https://policies.google.com/terms). Use the same Google
+account as Antigravity and do not manually override the page's country selector.
+Account association differs from the current proxy exit IP, physical location
+and payment-profile country. Changing a node does not confirm an account-country
+change. If the association is incorrect, Google's
+[correction form](https://policies.google.com/country-association-form) handles
+the request; submission alone does not establish that a correction is effective.
+
+Every doctor report includes this manual check. For an optional English prompt:
+
+```sh
+antigo doctor --guided
+```
+
+Or provide what the page actually shows, for this report only:
+
+```sh
+antigo doctor --account-region CN --compare-curl --json
+```
+
+No account cookies, browser profiles or tokens are read, and the answer is not
+saved. Empty answers remain Unknown. A reported mainland China association is
+flagged against the official list reviewed on 2026-11-08, with a link to recheck
+the current policy. Other names are not automatically labeled eligible. The
+unauthenticated HTTPS probes cannot diagnose account-country eligibility, and
+an account-country finding does not explain their transport failures.
 
 ## Distribution and development
 

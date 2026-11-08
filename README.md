@@ -90,6 +90,20 @@ antigo update
 antigo watch off
 ```
 
+macOS 0.1.1 adds connection-stage errors and a Google account-country check:
+
+```sh
+antigo doctor --guided
+antigo doctor --account-region CN --compare-curl --json
+```
+
+Use the country actually shown on Google's Terms page for the same account as
+Antigravity. It is separate from the proxy exit IP. The answer is user-reported,
+not saved or automatically queried. `--compare-curl` compares SOCKS5 and HTTP
+CONNECT on the saved port without changing routing or disabling TLS verification.
+Installation and bare `antigo` launch the app; `doctor`, `status` and background
+maintenance do not. The installer accepts `--no-start` to skip its first launch.
+
 This preview uses Electron launch settings and proxy environment variables with
 a local SOCKS5 bridge. It does not modify the app or change the system proxy.
 It cannot yet block direct IPv6 or capture helpers that ignore proxy settings.
