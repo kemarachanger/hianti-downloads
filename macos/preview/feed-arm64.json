@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "0.1.5",
+  "version": "0.1.6",
   "platform": "macos-arm64",
-  "sha256": "6f420a2a8a8692bf456dfbe293f6130909e8edac95d71954b5ac46eff8e6c20a",
-  "url": "https://github.com/kemarachanger/hianti-downloads/releases/download/macos-v0.1.5/antigo-0.1.5-macos-arm64"
+  "sha256": "ea7ca97782937e5529fd77efff690017e83c6c621aa906c6156db2fa5d990bf2",
+  "url": "https://github.com/kemarachanger/hianti-downloads/releases/download/macos-v0.1.6/antigo-0.1.6-macos-arm64"
 }

@@ -24,7 +24,8 @@ antigo --port 7890             # Bind a specific local SOCKS5/mixed port
 antigo fix                     # Save app/proxy binding without launching
 antigo status                  # Show concise app, proxy, bridge and worker status
 antigo status --verbose        # Show full paths, network flags, processes and details
-antigo doctor                  # Check proxy exits, HTTPS reachability and app sockets
+antigo doctor                  # Show proxy health, exit IP, HTTPS checks and socket warnings
+antigo doctor --verbose        # Include full local status, socket records and probe details
 antigo doctor --offline        # Check local setup and sockets without external probes
 antigo doctor --guided         # Prompt for the Google Terms account country
 antigo doctor --compare-curl   # Compare SOCKS5 and HTTP CONNECT via macOS curl
@@ -46,6 +47,8 @@ antigo restore                 # Stop bridge and auto repair; reopen Antigravity
 Auto repair keeps the bridge available at sign-in and tracks the app version. Launch through `antigo` after app updates to apply the scoped settings again.
 
 ## Diagnostics (`antigo doctor`)
+
+The default view is a compact summary. Use `--verbose` for full details or `--json` for the complete structured report; both work with `--offline`. Account-country guidance appears when requested with `--guided` or `--account-region`.
 
 - **Stage-aware HTTPS probes:** Reports failures by stage (`local_connect`, `socks_handshake`, `socks_connect` with SOCKS5 reply code, `tls_handshake`, `http_response`). Returns `FAIL` if all native HTTPS probes fail.
 - **Socket sampling (`--observe 1..30`):** Inspects the app and its current descendants via `ps` and `lsof`, flagging non-loopback TCP/UDP peers in `possible_bypass`. Brief connections and reparented helpers may be missed; unconnected UDP sockets are counted separately.
