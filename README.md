@@ -28,7 +28,8 @@ port. No TUN mode or Windows system-proxy change is needed.
 ## Windows daily use
 
 ```text
-antigo status           Check the app, proxy and background worker
+antigo status           Check essential app, proxy and worker status
+antigo status --verbose Show full paths, policies and timestamped history
 antigo ipv6 block       Block native IPv6 in injected processes
 antigo ipv6 proxy       Restore IPv6 routing through the proxy
 antigo doctor           Diagnose the proxy route and recent errors
@@ -42,7 +43,10 @@ antigo restore          Restore the original application files
 If several proxy ports are found, choose one with `antigo --port 3067` (use your
 client's actual port). After an Antigravity update, background maintenance waits for
 the app to exit before repairing files. `antigo fix` is available for manual repair.
-Account identity is currently reported as **Unknown**.
+Use `status --verbose` or `doctor` for complete local details. Default status
+omits full paths and account/service placeholders, while preserving warnings
+about pending configuration changes and inactive maintenance. JSON output keeps
+its existing fields. Text diagnostics omit repetitive fixed footer notes.
 
 IPv6 policy is saved for future repairs. Close Antigravity to apply a pending
 change. Loopback and IPv4-mapped connections remain available. This controls
@@ -85,6 +89,7 @@ Both `antigo` and `hianti` work. With multiple SOCKS5 listeners, choose one usin
 
 ```sh
 antigo status
+antigo status --verbose
 antigo doctor --json
 antigo update
 antigo watch off
