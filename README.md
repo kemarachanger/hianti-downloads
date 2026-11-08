@@ -20,7 +20,8 @@ antigo status           Show concise app, proxy, module, IPv6 and worker status
 antigo status --verbose Show full paths, policies, processes and history
 antigo ipv6 block       Block native IPv6 in injected processes
 antigo ipv6 proxy       Route IPv6 through the proxy (default)
-antigo doctor           Check setup, recent log errors, exit IP and HTTPS reachability
+antigo doctor           Show proxy health, exit IP, HTTPS checks and warnings
+antigo doctor --verbose Show full paths, policies, processes and diagnostic history
 antigo doctor --offline Check local setup and recent logs without network probes
 antigo fix              Repair once (--restart to close, repair and relaunch)
 antigo update           Install the latest signed release (--check, --rollback)
@@ -46,6 +47,7 @@ Launch Antigravity via `antigo` on each use (`antigo --port 7890` if multiple SO
 antigo status
 antigo status --verbose
 antigo doctor --guided
+antigo doctor --verbose
 antigo doctor --account-region CN --compare-curl --json
 antigo doctor --offline --observe 10
 antigo update
