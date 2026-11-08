@@ -31,6 +31,7 @@ antigo doctor              # Inspect proxy exits and HTTPS connectivity
 antigo doctor --offline    # Local checks only
 antigo doctor --guided     # Ask about the Google Terms account country
 antigo doctor --compare-curl  # Compare native probes with macOS curl
+antigo doctor --observe 10  # Sample app and descendant TCP/UDP sockets for 10s
 antigo fix                 # Save binding without launching
 antigo update              # Install the latest signed macOS preview
 antigo update --check      # Check for an update
@@ -68,12 +69,26 @@ without launching, then `antigo` when ready to start the app.
 ## What the preview covers
 
 Antigo sets Electron's HTTP proxy switch for the app's Chromium network stack
-and HTTP/HTTPS/ALL_PROXY environment variables for proxy-aware helpers. A local
+and HTTP/HTTPS/ALL_PROXY plus gRPC Core environment variables for proxy-aware helpers. A local
 HTTP bridge forwards connections to the selected SOCKS5 endpoint. Hostnames are
 sent to SOCKS5 for remote DNS. The bridge binds only to IPv4 loopback, validates
 the SOCKS5 handshake, and has no direct fallback when its upstream fails.
 Loopback OAuth callbacks and IPC remain available. Secure WebSockets use CONNECT;
 plain `ws://` upgrades through the bridge are currently unsupported.
+
+Starting with 0.1.2, managed launches also request Chromium to disable QUIC,
+disable non-proxied WebRTC UDP, and reject external hostname resolution in its
+local resolver. Loopback names/addresses remain available, and destinations
+are resolved by the proxy. The app may override or ignore these switches;
+they are requested launch settings, not verified socket enforcement. They can
+affect features that depend on direct WebRTC connectivity. Quit Antigravity and
+run `antigo` after updating to apply the new settings to a fresh process.
+
+The scoped environment explicitly replaces inherited `grpc_proxy` and
+`no_grpc_proxy`, and removes inherited gRPC address-proxy overrides. gRPC Core
+checks its own proxy variables before ordinary HTTP variables. Its exclusion
+list is restricted to loopback callbacks. Helpers using a different networking
+stack or disabling proxy support within the app may still bypass this setting.
 
 This is a different implementation from Windows socket injection. Helpers that
 ignore environment proxies, direct sockets and UDP may bypass these settings.
@@ -82,13 +97,26 @@ The preview **cannot enforce an IPv6 block**. `antigo ipv6` reports this limit;
 destinations. There is no TUN, system proxy edit, app-bundle modification,
 re-signing or DYLD injection.
 
-`doctor` checks the saved local endpoint, the bridge and observed non-loopback
-TCP sockets in app processes. Online mode performs four unauthenticated HTTPS
+`doctor` checks the saved local endpoint, the bridge and visible TCP/UDP sockets
+in bundle processes and their current descendants, including helpers outside
+the app directory. Online mode performs four unauthenticated HTTPS
 probes through SOCKS5: ipify IPv4/IPv6 exits, Google OAuth and the Antigravity
 service endpoint. Certificates are validated, redirects are not followed and
 there is no direct fallback. Observed sockets are a point-in-time clue, not proof
-that all requests use the proxy. UDP is not audited. `doctor` does not read account
+that all requests use the proxy. Connected UDP peers are reported; unconnected
+UDP sockets are counted separately because lsof cannot show their per-packet
+destinations. `doctor` does not read account
 tokens, judge Google's trust in an IP, or claim that Gemini access works.
+
+Use `antigo doctor --offline --observe 10` while performing an operation in the
+app to sample local sockets for approximately 10 seconds (1–30 supported).
+`possible_bypass` flags visible non-loopback peers, with protocol, process ID,
+address family and at most 32 peer details. It includes TCP connection attempts,
+not just established connections. This does not prove packets reached the wire
+or bypassed a separately installed network extension. Inspection failures are
+reported explicitly. Short-lived traffic, reparented helpers outside the bundle,
+system-mediated traffic and unconnected UDP destinations can remain invisible.
+Observing no external sockets never proves full coverage or IPv6 blocking.
 
 For the first real-app test, launch with `antigo`, send a small Gemini request,
 then run `antigo doctor --json`. The output includes paths and exit IPs; redact
@@ -180,4 +208,20 @@ The publisher runs `scripts/Build-Mac.ps1` with the locally held signing key, th
 `scripts/Publish-Mac.ps1`. The key is never uploaded to CI. See
 `docs/PUBLISHING.md` for the release procedure.
 
-Network-setting references: [Electron switches](https://www.electronjs.org/docs/latest/api/command-line-switches).
+### Enforcing process-level network policy on macOS
+
+A stronger edition needs a signed Network Extension, for example a transparent
+app proxy with explicit handling for TCP and UDP and application identity checks.
+This is separate from the current publisher-signed CLI. Apple requires the
+appropriate Network Extension entitlement and provisioning, Developer ID signing
+for direct distribution, and system-extension activation/approval. The extension
+must also handle helper identity, proxy outages, DNS, IPv6 and UDP policy before
+claiming enforcement. A simple environment variable, DYLD injection into a
+hardened third-party app, or an unscoped system firewall rule is not a substitute.
+No such extension is installed or advertised as active by this preview.
+
+Network references: [Electron switches](https://www.electronjs.org/docs/latest/api/command-line-switches),
+[gRPC Core proxy mapping](https://grpc.github.io/grpc/core/md_doc_core_default_http_proxy_mapper.html),
+[Chromium QUIC switch](https://chromium.googlesource.com/chromium/src/+/main/components/network_session_configurator/common/network_switch_list.h),
+[Chromium WebRTC switch](https://chromium.googlesource.com/chromium/src/+/main/content/public/common/content_switches.cc),
+and [Apple Network Extension deployment](https://developer.apple.com/documentation/technotes/tn3134-network-extension-provider-deployment).

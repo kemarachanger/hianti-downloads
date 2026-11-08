@@ -90,11 +90,12 @@ antigo update
 antigo watch off
 ```
 
-macOS 0.1.1 adds connection-stage errors and a Google account-country check:
+macOS includes connection-stage errors and a Google account-country check:
 
 ```sh
 antigo doctor --guided
 antigo doctor --account-region CN --compare-curl --json
+antigo doctor --offline --observe 10
 ```
 
 Use the country actually shown on Google's Terms page for the same account as
@@ -103,6 +104,11 @@ not saved or automatically queried. `--compare-curl` compares SOCKS5 and HTTP
 CONNECT on the saved port without changing routing or disabling TLS verification.
 Installation and bare `antigo` launch the app; `doctor`, `status` and background
 maintenance do not. The installer accepts `--no-start` to skip its first launch.
+
+Version 0.1.2 requests conservative Chromium QUIC, WebRTC and DNS settings,
+explicitly scopes gRPC Core proxy variables, and observes app-descendant TCP/UDP
+sockets. Quit the app and launch with `antigo` after updating. Socket observations
+are diagnostic evidence; the preview still cannot enforce a native IPv6 block.
 
 This preview uses Electron launch settings and proxy environment variables with
 a local SOCKS5 bridge. It does not modify the app or change the system proxy.
