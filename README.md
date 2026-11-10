@@ -47,13 +47,21 @@ antigo uninstall        Remove Antigo and restore the app files (--keep-settings
 
 ## macOS Preview
 
+Requires macOS 12 (Monterey) or later. Antigo installs for your macOS user account only and needs no administrator password; each account on the Mac that uses Antigravity needs its own install.
+
 Quit Antigravity, start your local proxy client, and run in Terminal:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/kemarachanger/hianti-downloads/main/macos/install.sh | bash && export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Launch Antigravity via `antigo` on each use (`antigo --port 7890` if multiple SOCKS5 ports are active).
+If GitHub cannot be reached without your proxy, install through it. Replace `7890` with your proxy app's SOCKS5 or mixed port:
+
+```sh
+curl -fsSL --proxy socks5h://127.0.0.1:7890 https://raw.githubusercontent.com/kemarachanger/hianti-downloads/main/macos/install.sh | bash -s -- --proxy 127.0.0.1:7890 && export PATH="$HOME/.local/bin:$PATH"
+```
+
+Open Antigravity the normal way or with `antigo`. With auto repair on (the default), Antigo reopens an app opened the normal way through the proxy as it starts (seamless launch; `antigo seamless off` turns it off). Use `antigo --port 7890` if multiple SOCKS5 ports are active.
 
 ```sh
 antigo status
@@ -64,7 +72,13 @@ antigo doctor --account-region CN --compare-curl --json
 antigo doctor --offline --observe 10
 antigo update
 antigo watch off
+antigo seamless off
+antigo ipv6 block
+antigo uninstall
 ```
+
+- **IPv6:** `antigo ipv6 block` blocks IPv6 for traffic through Antigo. Helpers that ignore proxy settings are reported, not blocked. `antigo ipv6 proxy`, the default, never blocks.
+- **Uninstall:** `antigo uninstall` removes Antigo, its login startup and the `antigo` and `hianti` commands without asking, and lists what it removed; Antigravity itself is not changed. `--keep-settings` keeps `settings.json`.
 
 The macOS preview uses a local HTTP-to-SOCKS5 bridge and scoped Chromium/Electron and gRPC settings. It requests QUIC/WebRTC UDP restrictions and remote DNS; helpers that ignore these settings can still connect directly, including over IPv6. See the [macOS guide](macos/README.md) for details.
 
