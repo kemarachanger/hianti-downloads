@@ -6,7 +6,8 @@ param(
     [switch]$NoStart,
     [string]$AppPath,
     [ValidateRange(0,65535)][int]$Port=0,
-    [switch]$NoWatch
+    [switch]$NoWatch,
+    [string]$Proxy
 )
 # Keep preferences, helper functions and credentials out of an interactive caller.
 & {
@@ -19,6 +20,19 @@ $trustedKeys=@('mtCzXlSbGt6rwUAUYvZikJlQm1jROklhWBT9fcUAA0dsN4DKJtw7H3QZf5yKSYID
 # Files every package must hold: what this installer and the installed updater read to verify it,
 # and the entry points that install and start it.
 $required=@('hianti.ps1','release.json','trust-public.xml','Hianti.Update.psm1','launcher.ps1','hianti.cmd','payload/version.dll','Install-Local.ps1')
+# -Proxy for this installer's own downloads (plan 4.4): HOST:PORT or socks5h://HOST:PORT for a SOCKS5
+# or mixed port (socks5:// is read as socks5h://, so the proxy resolves host names), or
+# http://HOST:PORT for an HTTP port. If it does not connect, the installer says so once and downloads
+# directly. The signature and checksum checks apply either way.
+$route=@{Proxy='';Name=''}
+if ($Proxy) {
+    $proxyMatch=[regex]::Match($Proxy.Trim(),'^(?:(socks5h?|http)://)?([A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\]):([0-9]{1,5})/?$','IgnoreCase')
+    if (-not $proxyMatch.Success -or [int]$proxyMatch.Groups[3].Value -lt 1 -or [int]$proxyMatch.Groups[3].Value -gt 65535) {
+        Write-Error 'Installation failed: use -Proxy HOST:PORT with the SOCKS5 or mixed port of your proxy app, for example -Proxy 127.0.0.1:7890.'
+    }
+    $route.Name=$proxyMatch.Groups[2].Value + ':' + [int]$proxyMatch.Groups[3].Value
+    $route.Proxy=$(if ($proxyMatch.Groups[1].Value -eq 'http') {'http://'} else {'socks5h://'}) + $route.Name
+}
 $stage=Join-Path ([IO.Path]::GetTempPath()) ('hianti-install-' + [Guid]::NewGuid().ToString('N'))
 $null=New-Item -ItemType Directory -Path $stage
 $token=''
@@ -30,7 +44,7 @@ if (-not $publicDistribution) {
         if ($token) { break }
     }
 }
-function Download([string]$Url,[string]$Path,[int]$Limit,[switch]$Json) {
+function Receive-Direct([string]$Url,[string]$Path,[int]$Limit,[switch]$Json) {
     [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
     $uri=[Uri]$Url
     for ($i=0;$i -lt 6;$i++) {
@@ -61,6 +75,75 @@ function Download([string]$Url,[string]$Path,[int]$Limit,[switch]$Json) {
         } finally { if ($response) { $response.Dispose() } }
     }
     throw 'Too many download redirects.'
+}
+# A server answer that is not the file, or a download this installer refuses: never tried again.
+function Stop-Answered([string]$Message) {
+    $failure=New-Object InvalidOperationException $Message
+    $failure.Data['Answered']=$true
+    throw $failure
+}
+# Downloads through -Proxy with Windows curl.exe, which hands host names to a SOCKS5 proxy, and follows
+# redirects as Receive-Direct does. Any failure but Stop-Answered means that the proxy did not
+# connect or the transfer broke off. It never gives curl.exe a GitHub token.
+function Receive-Proxied([string]$Url,[string]$Path,[int]$Limit,[switch]$Json) {
+    $curl=Join-Path $env:SystemRoot 'System32\curl.exe'
+    if (-not (Test-Path -LiteralPath $curl -PathType Leaf)) { throw 'Windows curl.exe is unavailable.' }
+    $uri=[Uri]$Url
+    for ($i=0;$i -lt 6;$i++) {
+        if ($uri.Scheme -ne 'https' -or $uri.UserInfo) { Stop-Answered 'Only HTTPS downloads without embedded credentials are allowed.' }
+        if ($uri.Host -eq 'api.github.com' -and $token) { throw 'A download with a GitHub token is made directly.' }
+        if (Test-Path -LiteralPath $Path) { Remove-Item -LiteralPath $Path -Force }
+        $arguments=@('-q','--silent','--show-error','--proto','=https','--tlsv1.2','--connect-timeout','15','--speed-limit','1','--speed-time','30','--max-time','900',
+            '--max-filesize',[string]$Limit,'--proxy',$route.Proxy,'--noproxy','','--user-agent','Hianti-Installer/0.1','--output',$Path,
+            '--write-out','\nHIANTI_RESULT %{http_code} %{redirect_url}\n')
+        if ($uri.Host -eq 'api.github.com') { $arguments+=@('--header',('Accept: ' + $(if ($Json) {'application/vnd.github+json'} else {'application/octet-stream'}))) }
+        $arguments+=$uri.AbsoluteUri
+        if (@($arguments | Where-Object { $_.Contains('"') -or $_.EndsWith('\') -or $_ -match '[\r\n]' }).Count) { throw 'A download argument cannot be given to curl.exe.' }
+        $info=New-Object Diagnostics.ProcessStartInfo
+        $info.FileName=$curl; $info.UseShellExecute=$false; $info.CreateNoWindow=$true; $info.RedirectStandardOutput=$true; $info.RedirectStandardError=$true
+        $info.Arguments=@($arguments | ForEach-Object { if ($_ -and $_ -notmatch '\s') { $_ } else { '"' + $_ + '"' } }) -join ' '
+        $process=[Diagnostics.Process]::Start($info)
+        try {
+            $output=$process.StandardOutput.ReadToEndAsync(); $errors=$process.StandardError.ReadToEndAsync()
+            if (-not $process.WaitForExit(930000)) { try { $process.Kill() } catch { }; throw 'The download through the proxy did not finish in time.' }
+            $process.WaitForExit()
+            $code=$process.ExitCode; $text=[string]$output.Result; $problem=([string]$errors.Result -replace '\s+',' ').Trim()
+        } finally { $process.Dispose() }
+        # 63: the size the server announced is over the limit.
+        if ($code -eq 63) { Stop-Answered 'Download size limit exceeded.' }
+        if ($code -ne 0) { throw ('curl.exe exited with ' + $code + '. ' + $problem) }
+        $answer=[regex]::Match($text,'HIANTI_RESULT (\d{3}) ?(\S*)\s*$')
+        if (-not $answer.Success) { throw 'curl.exe did not report the answer.' }
+        $status=[int]$answer.Groups[1].Value
+        if ($status -in @(301,302,303,307,308)) {
+            $next=$null
+            if (-not [Uri]::TryCreate($answer.Groups[2].Value,[UriKind]::Absolute,[ref]$next)) { Stop-Answered 'Unsafe download redirect.' }
+            $uri=$next
+            continue
+        }
+        if ($status -ne 200) { Stop-Answered ('Unexpected download response (HTTP ' + $status + ').') }
+        if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { [IO.File]::WriteAllBytes($Path,[byte[]]@()) }
+        if ((Get-Item -LiteralPath $Path).Length -gt $Limit) { Stop-Answered 'Download size limit exceeded.' }
+        return
+    }
+    Stop-Answered 'Too many download redirects.'
+}
+# Downloads through -Proxy when one is given, and directly from the first download through it that
+# does not connect or breaks off. A server answer is not tried again directly.
+function Download([string]$Url,[string]$Path,[int]$Limit,[switch]$Json) {
+    # A download that carries a GitHub token goes directly, so the token never reaches a command line.
+    if ($route.Proxy -and -not ($token -and ([Uri]$Url).Host -eq 'api.github.com')) {
+        try { Receive-Proxied $Url $Path $Limit -Json:$Json; return }
+        catch {
+            $answered=$false
+            for ($failure=$_.Exception; $failure; $failure=$failure.InnerException) { if ($failure.Data.Contains('Answered')) { $answered=$true } }
+            if ($answered) { throw }
+            Write-Output ('Antigo | The proxy at ' + $route.Name + ' did not connect; downloading directly')
+            $route.Proxy=''
+            if (Test-Path -LiteralPath $Path) { Remove-Item -LiteralPath $Path -Force }
+        }
+    }
+    Receive-Direct $Url $Path $Limit -Json:$Json
 }
 # Keys are compared by RSA modulus and exponent, never as text: base64 without leading zero bytes.
 function Get-KeyId([byte[]]$Modulus,[byte[]]$Exponent) {
@@ -106,7 +189,8 @@ function Read-PackageKeys([string]$Root) {
     return $keys
 }
 try {
-    Write-Output 'Antigo | Downloading the latest signed release'
+    if ($route.Proxy) { Write-Output ('Antigo | Downloading the latest signed release through the proxy at ' + $route.Name) }
+    else { Write-Output 'Antigo | Downloading the latest signed release' }
     # feed-v2.json lists every package file with its SHA-256. Any trusted key may sign it.
     $feedNames=@('feed-v2.json','feed-v2.json.sig')
     $release=$null
