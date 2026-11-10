@@ -29,7 +29,7 @@ antigo watch off        Disable auto repair and login startup
 antigo restore          Restore original application files
 ```
 
-- **Select a specific proxy port:** `antigo --port 3067`
+- **Select a specific proxy port:** `antigo --port 3067`. Antigo keeps using the port you chose. If that proxy is not running, Antigo stops with a message naming any other proxy it found; start your proxy app, or switch with `antigo --port PORT`.
 - **Upgrade an older Hianti install:** rerun the one-line installer above, or run `hianti update`, then `hianti --help`.
 - **Manual/offline install:** download the [latest release ZIP](https://github.com/kemarachanger/hianti-downloads/releases/latest), extract it, and run `powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-Local.ps1 -Start`.
 

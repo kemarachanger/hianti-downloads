@@ -14,8 +14,11 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference='Stop'
 $repository='kemarachanger/hianti-downloads'
 $publicDistribution=$true
-$publicKey='<RSAKeyValue><Modulus>mtCzXlSbGt6rwUAUYvZikJlQm1jROklhWBT9fcUAA0dsN4DKJtw7H3QZf5yKSYIDGpGswOGITruCSFfP4msIJA5RVVMA8/Blp7dQW1E75jDUxGDKSmYYkIkUl4didn16BKzPwZ9ybBNz421HtUw9lZ6YhN2bREX2DCpluaP+o9KYnjpH6i6lRO2tzoJoYjfcfbTIkncILTjMYtu9Hleojg6qA2VAo9ZUibjrbftisPcMr0JcrSyTKZNd0To6UmzNYTWIuU6TRYkr3dA3iasIGhWEXAVldbhFLqW+3vVOTF7T1bdlCWP5HYWbkEQZb2KJbAABJcl2ibaaItDPkWwdPHQRaPmiDawFht26bOheFpbXjC7arDVL1+IaFbkDZc+uYNa2vcBNg9Txbt+en71nbWUs3QqgcDt2Am7ayJ1Ya6m4kxdBPWa+vEJE93onOK69WLAL+ytqF5LTi9eEKR8lqtK3wKOrdDvOHChlZI50S1y+URvFM1XjnNEsoChy5jcF</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>'
-$allowed=@('hianti.ps1','Hianti.Core.psm1','Hianti.Watch.psm1','Hianti.Update.psm1','ProxyInstaller.psm1','release.json','compatibility.json','trust-public.xml','Install-Local.ps1','launcher.ps1','hianti.cmd','payload/config.json','payload/version.dll','LICENSE','README.md','THIRD-PARTY-LICENSE.txt','THIRD-PARTY-AUTHORS.txt')
+# Trusted signing keys from trusted_keys in release.json, as base64 RSA modulus:exponent.
+$trustedKeys=@('mtCzXlSbGt6rwUAUYvZikJlQm1jROklhWBT9fcUAA0dsN4DKJtw7H3QZf5yKSYIDGpGswOGITruCSFfP4msIJA5RVVMA8/Blp7dQW1E75jDUxGDKSmYYkIkUl4didn16BKzPwZ9ybBNz421HtUw9lZ6YhN2bREX2DCpluaP+o9KYnjpH6i6lRO2tzoJoYjfcfbTIkncILTjMYtu9Hleojg6qA2VAo9ZUibjrbftisPcMr0JcrSyTKZNd0To6UmzNYTWIuU6TRYkr3dA3iasIGhWEXAVldbhFLqW+3vVOTF7T1bdlCWP5HYWbkEQZb2KJbAABJcl2ibaaItDPkWwdPHQRaPmiDawFht26bOheFpbXjC7arDVL1+IaFbkDZc+uYNa2vcBNg9Txbt+en71nbWUs3QqgcDt2Am7ayJ1Ya6m4kxdBPWa+vEJE93onOK69WLAL+ytqF5LTi9eEKR8lqtK3wKOrdDvOHChlZI50S1y+URvFM1XjnNEsoChy5jcF:AQAB','4tGwwg3NIScQVp7YeD1g9HvJUjLalUGHWmP+gXYNEVVEv2orIh+ykhr4smqHO4pfnXJEKqZ5Mm0TzPnYW2rzt11zKi+7poo+3m0C2slUroa49ss9AQFT9vX/jFJvXRec7IqhLY9rq6+ED30YwUxQPjZkIZ+wftMKlnGhmWOrBo2F4ld1D37dJcBJFiPTdYWLfEfGcwvHg9uLqOApYTYZdzfCGttO3f4vY769wldOjLXXGztVFQWqtUl6BNuFpOSax0jZCMbccJPnLktGljo/UzR41UP6tUXt3BXMXUDAPHWS+cvlQ8+nYS16A1UjJAfjSqInaM3GwIPtj9atPWf1QGJ4mW4aXVwK/3vrcny3pF6jkc0II73JwFRiPuWatrG61FEZgsLLAWgDew4aHWHRRKF7m15G1iKW1JKtPMinAUYIjxJIiSj1cEjoen0mnPShF2Duvi2S4nWmKex1tTAGrVI/5QkUPSGs+oMJvSQ8m+SbwMlDV9YCTWKD+9p/SM7F:AQAB')
+# Files every package must hold: what this installer and the installed updater read to verify it,
+# and the entry points that install and start it.
+$required=@('hianti.ps1','release.json','trust-public.xml','Hianti.Update.psm1','launcher.ps1','hianti.cmd','payload/version.dll','Install-Local.ps1')
 $stage=Join-Path ([IO.Path]::GetTempPath()) ('hianti-install-' + [Guid]::NewGuid().ToString('N'))
 $null=New-Item -ItemType Directory -Path $stage
 $token=''
@@ -59,33 +62,96 @@ function Download([string]$Url,[string]$Path,[int]$Limit,[switch]$Json) {
     }
     throw 'Too many download redirects.'
 }
+# Keys are compared by RSA modulus and exponent, never as text: base64 without leading zero bytes.
+function Get-KeyId([byte[]]$Modulus,[byte[]]$Exponent) {
+    $parts=foreach ($bytes in @(,$Modulus) + @(,$Exponent)) {
+        $start=0
+        while ($start -lt ($bytes.Length - 1) -and $bytes[$start] -eq 0) { $start++ }
+        [Convert]::ToBase64String($bytes,$start,($bytes.Length - $start))
+    }
+    return ($parts -join ':')
+}
+function Test-Signature([string]$KeyId,[byte[]]$Data,[byte[]]$Signature) {
+    $parts=$KeyId.Split(':')
+    $rsa=New-Object Security.Cryptography.RSACryptoServiceProvider
+    $rsa.PersistKeyInCsp=$false
+    try {
+        $parameters=New-Object Security.Cryptography.RSAParameters
+        $parameters.Modulus=[Convert]::FromBase64String($parts[0])
+        $parameters.Exponent=[Convert]::FromBase64String($parts[1])
+        $rsa.ImportParameters($parameters)
+        return [bool]$rsa.VerifyData($Data,'SHA256',$Signature)
+    } catch { return $false } finally { $rsa.Dispose() }
+}
+# The keys a package trusts. Its trust-public.xml must be the one primary key in its release.json.
+function Read-PackageKeys([string]$Root) {
+    $rsa=New-Object Security.Cryptography.RSACryptoServiceProvider
+    $rsa.PersistKeyInCsp=$false
+    try {
+        $rsa.FromXmlString([IO.File]::ReadAllText((Join-Path $Root 'trust-public.xml')))
+        $parameters=$rsa.ExportParameters($false)
+    } finally { $rsa.Dispose() }
+    $fileKey=Get-KeyId $parameters.Modulus $parameters.Exponent
+    $release=Get-Content -LiteralPath (Join-Path $Root 'release.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $keys=@($fileKey)
+    if ($release.PSObject.Properties['trusted_keys']) {
+        $primary=@()
+        foreach ($entry in @($release.trusted_keys)) {
+            $id=Get-KeyId ([Convert]::FromBase64String($entry.modulus)) ([Convert]::FromBase64String($entry.exponent))
+            if ($entry.role -ceq 'primary') { $primary+=$id }
+            $keys+=$id
+        }
+        if ($primary.Count -ne 1 -or $primary[0] -cne $fileKey) { throw 'The package signing key is not its primary trusted key.' }
+    }
+    return $keys
+}
 try {
     Write-Output 'Antigo | Downloading the latest signed release'
+    # feed-v2.json lists every package file with its SHA-256. Any trusted key may sign it.
+    $feedNames=@('feed-v2.json','feed-v2.json.sig')
     $release=$null
     if ($publicDistribution) {
-        foreach ($name in @('feed.json','feed.json.sig')) {
+        foreach ($name in $feedNames) {
             Download ('https://github.com/' + $repository + '/releases/latest/download/' + $name) (Join-Path $stage $name) 131072
         }
     } else {
         $metadata=Join-Path $stage 'release.json'
         Download ('https://api.github.com/repos/' + $repository + '/releases/latest') $metadata 2097152 -Json
         $release=Get-Content -LiteralPath $metadata -Raw -Encoding UTF8 | ConvertFrom-Json
-        foreach ($name in @('feed.json','feed.json.sig')) {
+        foreach ($name in $feedNames) {
             $asset=@($release.assets | Where-Object name -eq $name)
             if ($asset.Count -ne 1) { throw ('Missing release asset: ' + $name) }
             Download $asset[0].url (Join-Path $stage $name) 131072
         }
     }
-    $bytes=[IO.File]::ReadAllBytes((Join-Path $stage 'feed.json'))
-    $rsa=New-Object Security.Cryptography.RSACryptoServiceProvider
-    $rsa.PersistKeyInCsp=$false
-    try {
-        $rsa.FromXmlString($publicKey)
-        $signature=[Convert]::FromBase64String([IO.File]::ReadAllText((Join-Path $stage 'feed.json.sig')))
-        if (-not $rsa.VerifyData($bytes,'SHA256',$signature)) { throw 'The release signature is invalid.' }
-    } finally { $rsa.Dispose() }
+    $bytes=[IO.File]::ReadAllBytes((Join-Path $stage 'feed-v2.json'))
+    $signature=[Convert]::FromBase64String([IO.File]::ReadAllText((Join-Path $stage 'feed-v2.json.sig')).Trim())
+    $signers=@(foreach ($pair in $trustedKeys) {
+        $parts=$pair.Split(':')
+        $id=Get-KeyId ([Convert]::FromBase64String($parts[0])) ([Convert]::FromBase64String($parts[1]))
+        if (Test-Signature $id $bytes $signature) { $id }
+    })
+    if (-not $signers.Count) { throw 'The release signature is invalid.' }
+    # Windows PowerShell refuses JSON whose names differ only in case, such as a file listed twice.
     $manifest=[Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
-    if ($manifest.schema -ne 1 -or $manifest.platform -ne 'windows-x64' -or $manifest.version -notmatch '^\d+\.\d+\.\d+$' -or $manifest.sha256 -notmatch '^[0-9a-fA-F]{64}$') { throw 'Unsupported release metadata.' }
+    foreach ($name in @('schema','version','platform','sha256','url','files')) {
+        if (-not $manifest.PSObject.Properties[$name]) { throw 'Unsupported release metadata.' }
+    }
+    if ($manifest.schema -ne 2 -or $manifest.platform -ne 'windows-x64' -or $manifest.version -notmatch '^\d+\.\d+\.\d+\z' -or $manifest.sha256 -notmatch '^[0-9a-fA-F]{64}\z' -or
+        $manifest.files -isnot [Management.Automation.PSCustomObject]) { throw 'Unsupported release metadata.' }
+    # Relative names with forward slashes, each part letters, digits, '.', '_' or '-', never ending
+    # with '.' and never a device name; each listed once, ignoring case as Windows does.
+    $files=New-Object Collections.Specialized.OrderedDictionary ([StringComparer]::Ordinal)
+    $listed=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($property in @($manifest.files.PSObject.Properties)) {
+        $safe=$property.Name.Length -le 200 -and $property.Value -is [string] -and $property.Value -match '^[0-9a-fA-F]{64}\z'
+        foreach ($part in $property.Name.Split('/')) {
+            if ($part -cnotmatch '^[A-Za-z0-9_][A-Za-z0-9_.-]*\z' -or $part.EndsWith('.') -or $part -match '^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])(\..*)?\z') { $safe=$false }
+        }
+        if (-not $safe -or -not $listed.Add($property.Name)) { throw 'The signed file list has an unsafe or repeated name.' }
+        $files[$property.Name]=$property.Value.ToUpperInvariant()
+    }
+    foreach ($name in $required) { if (-not $files.Contains($name)) { throw ('The signed file list does not include ' + $name + '.') } }
     if ($release -and ($release.tag_name -ne ('v' + $manifest.version) -or $release.draft -or $release.prerelease)) { throw 'The release does not match the signed version.' }
     $packageName='hianti-' + $manifest.version + '-windows-x64.zip'
     $packageUrl='https://github.com/' + $repository + '/releases/download/v' + $manifest.version + '/' + $packageName
@@ -103,19 +169,23 @@ try {
     $null=New-Item -ItemType Directory -Path $package
     $zip=[IO.Compression.ZipFile]::OpenRead($archive)
     try {
-        $seen=@{}; $total=0L
+        # Exactly the listed files, by exact name: no other entry, directory, link or second spelling.
+        $seen=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase); $total=0L
         foreach ($entry in $zip.Entries) {
-            $name=$entry.FullName.Replace('\','/')
+            $name=$entry.FullName
+            $type=($entry.ExternalAttributes -shr 16) -band 0xF000
             $total+=$entry.Length
-            if ($name -notin $allowed -or $seen.ContainsKey($name) -or $entry.Length -gt 30MB -or $total -gt 60MB -or (($entry.ExternalAttributes -shr 16) -band 0xF000) -eq 0xA000) { throw 'Unsafe or unexpected package entry.' }
-            $seen[$name]=$true
-            $destination=Join-Path $package $name
+            if (-not $files.Contains($name) -or -not $seen.Add($name) -or $entry.Length -gt 30MB -or $total -gt 60MB -or ($type -ne 0 -and $type -ne 0x8000) -or ($entry.ExternalAttributes -band 0x410)) { throw 'Unsafe or unexpected package entry.' }
+            $destination=Join-Path $package $name.Replace('/','\')
             $null=New-Item -ItemType Directory -Path ([IO.Path]::GetDirectoryName($destination)) -Force
             [IO.Compression.ZipFileExtensions]::ExtractToFile($entry,$destination,$false)
+            if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -ne $files[$name]) { throw ('A package file failed verification: ' + $name) }
         }
-        if ($seen.Count -ne $allowed.Count) { throw 'Incomplete package.' }
+        if ($seen.Count -ne $files.Count) { throw 'Incomplete package.' }
     } finally { $zip.Dispose() }
-    if ([IO.File]::ReadAllText((Join-Path $package 'trust-public.xml')).Trim() -ne $publicKey) { throw 'The package changes the trusted key.' }
+    # The package must still trust a key that signed it, so its updater can verify the next release.
+    $packageKeys=@(Read-PackageKeys $package)
+    if (-not @($packageKeys | Where-Object { $signers -ccontains $_ }).Count) { throw 'The package changes the trusted key.' }
     Write-Output 'Antigo | Signature and package verified'
     $oldProcessPolicy=Get-ExecutionPolicy -Scope Process
     if ($oldProcessPolicy -ne 'Bypass') {
